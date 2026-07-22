@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<title>ぐるぐるでんしゃ</title>
+<style>
+  :root{
+    --wood-dark:#2a1c12;
+    --wood-mid:#4a3320;
+    --tile:#aed491;
+    --rail:#4b4038;
+    --rail-dark:#2e2620;
+    --tie:#8a6a45;
+    --gold:#caa23a;
+    --green:#3f7d5c;
+    --ground-0:#c6e3ab;
+    --ground-60:#aed491;
+    --ground-100:#98c17c;
+    --tuft-1:#87b869;
+    --tuft-2:#c3e2a4;
+    --tuft-3:#9bc87c;
+    --tuft-4:#aed491;
+    --tile-line:#779761;
+  }
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0; padding:0; height:100%;
+    background:#ffffff;
+    font-family: ui-sans-serif, "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+    color:#2b2b2b;
+    display:flex; align-items:center; justify-content:center;
+    min-height:100vh;
+  }
+  .app{ width:min(96vw, 760px); padding:22px 22px 26px; }
+  .header{ position:relative; display:flex; justify-content:center; align-items:center; margin-bottom:16px; }
+  .header #newBtn{ position:absolute; right:0; top:50%; transform:translateY(-50%); }
+  h1{
+    font-family: inherit;
+    font-weight:800;
+    font-size:26px; letter-spacing:0.04em; margin:0; color:#2b2b2b;
+  }
+  #board-wrap{
+    background: #eef1ea;
+    border:1px solid #dde2d6;
+    border-radius:14px;
+    padding:14px;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.08);
+  }
+  svg{ display:block; width:100%; height:auto; }
+  .hex-poly{
+    fill: url(#grassFill); stroke: var(--tile-line); stroke-width:1.4;
+    transition: filter 0.15s ease; cursor:pointer;
+  }
+  .hex-group{ transform-box: fill-box; transform-origin: 50% 50%; }
+  .hex-group:hover .hex-poly{ filter:brightness(1.12); }
+  .ballast{ fill:none; stroke:#3a3128; stroke-width:9; stroke-linecap:round; opacity:0.26; }
+  .tie{ stroke:#6b4a2a; stroke-width:2.3; stroke-linecap:round; }
+  .rail-base{ fill:none; stroke:#2e2620; stroke-width:1.6; stroke-linecap:round; }
+  .rail-shine{ fill:none; stroke:#b9a98e; stroke-width:0.6; stroke-linecap:round; opacity:0.85; }
+  .tuft-a{ stroke: var(--tuft-1); }
+  .tuft-b{ stroke: var(--tuft-2); }
+  .tuft-c{ stroke: var(--tuft-3); }
+  .tuft-d{ stroke: var(--tuft-4); }
+  .badge{ font-size:11px; font-weight:700; fill:var(--green); pointer-events:none; letter-spacing:0.05em; }
+  .controls{ position:relative; display:flex; justify-content:center; align-items:center; margin-top:16px; min-height:20px; }
+  #addBtn{ position:absolute; left:0; }
+  button{
+    font-family:inherit; font-size:14px; font-weight:600; padding:9px 18px;
+    border-radius:8px; border:1px solid rgba(255,255,255,0.15); cursor:pointer; letter-spacing:0.02em;
+  }
+  #runBtn{ background:var(--gold); color:#3a2a12; border-color:#8a6a20; }
+  #runBtn:hover{ filter:brightness(1.05); }
+  #newBtn, #addBtn{ background:#f0f0ec; color:#2b2b2b; border-color:#d8d8d0; }
+  #newBtn:hover, #addBtn:hover{ background:#e4e4dc; }
+  #status{ margin-left:auto; font-size:14px; font-weight:700; min-height:20px; color:#8a8a80; }
+
+  @media (max-width: 460px){
+    .app{ padding:14px 12px 20px; }
+    h1{ font-size:16px; }
+    .header #newBtn{ font-size:12px; padding:6px 10px; }
+    .controls{ flex-direction:column; gap:10px; }
+    #addBtn{ position:static; order:2; }
+    #runBtn{ order:1; }
+    button{ font-size:13px; padding:8px 14px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="header">
+    <h1>ぐるぐるでんしゃ</h1>
+    <button id="newBtn">やりなおす</button>
+  </div>
+  <div id="board-wrap">
+    <svg id="board" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"></svg>
+  </div>
+  <div class="controls">
+    <button id="addBtn">でんしゃをふやす</button>
+    <button id="runBtn">スタート</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  const COLS = 8, ROWS = 8, SIZE = 34, PAD = 40;
+  const APOTHEM = SIZE * Math.sqrt(3) / 2;
+  const START = {col:0, row:ROWS-1};   // 出発地点（左下）
+
+  // 固定の柄（1パターンのみ）: 辺(0,2) (1,3) (4,5) を結ぶ
+  const FIXED_BASE = [2,3,0,1,5,4];
+
+  // direction order: 0=E,1=NE,2=NW,3=W,4=SW,5=SE
+  const OFFSET_DIRS = [
+    [[+1,0],[0,-1],[-1,-1],[-1,0],[-1,+1],[0,+1]],   // even row
+    [[+1,0],[+1,-1],[0,-1],[-1,0],[0,+1],[+1,+1]],   // odd row
+  ];
+  function neighborOf(pos, dir){
+    const parity = pos.row & 1;
+    const [dc,dr] = OFFSET_DIRS[parity][dir];
+    return {col: pos.col+dc, row: pos.row+dr};
+  }
+  function wrap(p){
+    return {col: ((p.col%COLS)+COLS)%COLS, row: ((p.row%ROWS)+ROWS)%ROWS};
+  }
+  function neighborWrapped(pos, dir){ return wrap(neighborOf(pos, dir)); }
+  function key(p){ return p.col+','+p.row; }
+
+  function pixel(col,row){
+    const x = SIZE*Math.sqrt(3)*(col + 0.5*(row%2)) + PAD;
+    const y = SIZE*1.5*row + PAD;
+    return {x,y};
+  }
+
+  function effectiveConn(tile, e){
+    const src = (e + tile.rotation) % 6;
+    return (FIXED_BASE[src] - tile.rotation + 6) % 6;
+  }
+
+  function edgePoint(cx,cy,e){
+    const a = Math.PI/180*(-60*e);
+    return {x:cx+APOTHEM*Math.cos(a), y:cy+APOTHEM*Math.sin(a)};
+  }
+
+  // ---- 円弧の幾何計算（辺の中点に垂直に出入りする真円弧） ----
+  function arcGeometry(cx,cy,e1,e2){
+    const a1 = Math.PI/180*(-60*e1), a2 = Math.PI/180*(-60*e2);
+    const p1 = {x:APOTHEM*Math.cos(a1), y:APOTHEM*Math.sin(a1)};
+    const p2 = {x:APOTHEM*Math.cos(a2), y:APOTHEM*Math.sin(a2)};
+    const D = Math.sin(a2-a1);
+    const Cx = APOTHEM*(Math.sin(a2)-Math.sin(a1))/D;
+    const Cy = APOTHEM*(Math.cos(a1)-Math.cos(a2))/D;
+    const R = Math.hypot(Cx-p1.x, Cy-p1.y);
+    let theta1 = Math.atan2(p1.y-Cy, p1.x-Cx);
+    let theta2 = Math.atan2(p2.y-Cy, p2.x-Cx);
+    let delta = theta2-theta1;
+    while(delta<=-Math.PI) delta += Math.PI*2;
+    while(delta>Math.PI) delta -= Math.PI*2;
+    return { C:{x:cx+Cx,y:cy+Cy}, R, theta1, delta };
+  }
+  function arcPointAt(geo, t){
+    const th = geo.theta1 + geo.delta*t;
+    return {x:geo.C.x+geo.R*Math.cos(th), y:geo.C.y+geo.R*Math.sin(th)};
+  }
+  function arcHeadingAt(geo, t){
+    const th = geo.theta1 + geo.delta*t;
+    const dir = geo.delta>=0 ? 1 : -1;
+    return (th*180/Math.PI) + 90*dir;
+  }
+  function arcPathD(C,R,theta1,delta){
+    const p1 = {x:C.x+R*Math.cos(theta1), y:C.y+R*Math.sin(theta1)};
+    const theta2 = theta1+delta;
+    const p2 = {x:C.x+R*Math.cos(theta2), y:C.y+R*Math.sin(theta2)};
+    const largeArcFlag = Math.abs(delta)>Math.PI ? 1:0;
+    const sweepFlag = delta>0 ? 1:0;
+    return `M ${p1.x} ${p1.y} A ${R} ${R} 0 ${largeArcFlag} ${sweepFlag} ${p2.x} ${p2.y}`;
+  }
+
+  let board;
+  function generateBoard(){
+    board = [];
+    for(let r=0;r<ROWS;r++){
+      const row=[]; for(let c=0;c<COLS;c++) row.push({rotation: Math.floor(Math.random()*6)});
+      board.push(row);
+    }
+  }
+
+  // ---- 描画：線路（レール2本＋枕木） ----
+  const svg = document.getElementById('board');
+  function hexPoints(cx,cy){
+    let pts=[];
+    for(let i=0;i<6;i++){
+      const ang = Math.PI/180*(30-60*i);
+      pts.push([cx+SIZE*Math.cos(ang), cy+SIZE*Math.sin(ang)]);
+    }
+    return pts;
+  }
+
+  const RAIL_GAP = 3.4;
+  function drawTrack(g, cx, cy, e1, e2){
+    const geo = arcGeometry(cx,cy,e1,e2);
+
+    // 砕石(バラスト)の帯 - レールの下敷きとして淡くぼかした太いストローク
+    const ballast = document.createElementNS('http://www.w3.org/2000/svg','path');
+    ballast.setAttribute('class','ballast');
+    ballast.setAttribute('d', arcPathD(geo.C, geo.R, geo.theta1, geo.delta));
+    g.appendChild(ballast);
+
+    // 枕木を先に描いて、レールが上に重なるようにする
+    const arcLen = Math.max(1, Math.abs(geo.delta)*geo.R);
+    const M = Math.max(3, Math.min(9, Math.round(arcLen/9)));
+    for(let i=0;i<=M;i++){
+      const t = i/M;
+      const th = geo.theta1 + geo.delta*t;
+      const ix = geo.C.x+(geo.R-RAIL_GAP-1.4)*Math.cos(th), iy = geo.C.y+(geo.R-RAIL_GAP-1.4)*Math.sin(th);
+      const ox = geo.C.x+(geo.R+RAIL_GAP+1.4)*Math.cos(th), oy = geo.C.y+(geo.R+RAIL_GAP+1.4)*Math.sin(th);
+      const tie = document.createElementNS('http://www.w3.org/2000/svg','line');
+      tie.setAttribute('class','tie');
+      tie.setAttribute('x1', ix); tie.setAttribute('y1', iy);
+      tie.setAttribute('x2', ox); tie.setAttribute('y2', oy);
+      g.appendChild(tie);
+    }
+
+    // レール本体（太い金属色）+ 上に細いハイライト線を重ねて光沢を表現
+    [geo.R-RAIL_GAP, geo.R+RAIL_GAP].forEach(r=>{
+      const base = document.createElementNS('http://www.w3.org/2000/svg','path');
+      base.setAttribute('class','rail-base');
+      base.setAttribute('d', arcPathD(geo.C, r, geo.theta1, geo.delta));
+      g.appendChild(base);
+      const shine = document.createElementNS('http://www.w3.org/2000/svg','path');
+      shine.setAttribute('class','rail-shine');
+      shine.setAttribute('d', arcPathD(geo.C, r, geo.theta1, geo.delta));
+      g.appendChild(shine);
+    });
+  }
+  function drawArcs(arcsGroup, x, y, tile){
+    arcsGroup.innerHTML = '';
+    const drawn = new Set();
+    for(let e=0;e<6;e++){
+      const other = effectiveConn(tile,e);
+      const pk = Math.min(e,other)+'-'+Math.max(e,other);
+      if(drawn.has(pk)) continue;
+      drawn.add(pk);
+      drawTrack(arcsGroup, x, y, e, other);
+    }
+  }
+
+  function mulberry32(a){
+    return function(){
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      let t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  const TUFT_CLASSES = ['tuft-a','tuft-b','tuft-c','tuft-d'];
+  function drawGrassTexture(g, cx, cy, seed){
+    const rnd = mulberry32(seed);
+    const n = 10 + Math.floor(rnd()*5);
+    for(let i=0;i<n;i++){
+      const ang = rnd()*Math.PI*2;
+      const dist = rnd()*SIZE*0.72;
+      const x = cx+dist*Math.cos(ang), y = cy+dist*Math.sin(ang);
+      const len = 2.2+rnd()*2.6;
+      const tuft = document.createElementNS('http://www.w3.org/2000/svg','line');
+      const a2 = ang + (rnd()-0.5)*1.2;
+      tuft.setAttribute('x1', x); tuft.setAttribute('y1', y);
+      tuft.setAttribute('x2', x+len*Math.cos(a2)); tuft.setAttribute('y2', y+len*Math.sin(a2));
+      tuft.setAttribute('class', TUFT_CLASSES[Math.floor(rnd()*TUFT_CLASSES.length)]);
+      tuft.setAttribute('stroke-width', 1.1+rnd()*0.9);
+      tuft.setAttribute('stroke-linecap','round');
+      tuft.setAttribute('opacity', 0.55+rnd()*0.3);
+      g.appendChild(tuft);
+    }
+  }
+
+  let isRunning = false;
+  let rotatingTiles = new Set();
+  let tileGroups = {};
+
+  function render(){
+    svg.innerHTML='';
+    let allX=[], allY=[];
+    for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
+      const {x,y}=pixel(c,r);
+      allX.push(x-SIZE,x+SIZE); allY.push(y-SIZE,y+SIZE);
+    }
+    const minX=Math.min(...allX), maxX=Math.max(...allX);
+    const minY=Math.min(...allY), maxY=Math.max(...allY);
+    svg.setAttribute('viewBox', `${minX-6} ${minY-6} ${maxX-minX+12} ${maxY-minY+12}`);
+
+    const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+    defs.innerHTML = `
+      <radialGradient id="grassFill" cx="35%" cy="30%" r="75%">
+        <stop offset="0%" style="stop-color:var(--ground-0)"/>
+        <stop offset="60%" style="stop-color:var(--ground-60)"/>
+        <stop offset="100%" style="stop-color:var(--ground-100)"/>
+      </radialGradient>
+      <linearGradient id="trainBody" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0%" stop-color="#ffffff"/>
+        <stop offset="45%" stop-color="#e6eaec"/>
+        <stop offset="100%" stop-color="#9aa2a7"/>
+      </linearGradient>`;
+    svg.appendChild(defs);
+
+    tileGroups = {};
+    for(let r=0;r<ROWS;r++){
+      for(let c=0;c<COLS;c++){
+        const {x,y} = pixel(c,r);
+        const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+        g.setAttribute('class','hex-group');
+
+        const poly = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+        poly.setAttribute('class','hex-poly');
+        poly.setAttribute('points', hexPoints(x,y).map(p=>p.join(',')).join(' '));
+        g.appendChild(poly);
+
+        drawGrassTexture(g, x, y, r*COLS+c);
+
+        const arcsGroup = document.createElementNS('http://www.w3.org/2000/svg','g');
+        arcsGroup.setAttribute('class','arcs');
+        drawArcs(arcsGroup, x, y, board[r][c]);
+        g.appendChild(arcsGroup);
+
+        g.addEventListener('click', ()=>{
+          const tk = key({col:c,row:r});
+          if(rotatingTiles.has(tk)) return;
+          if(trains.some(tr=>tr.col===c && tr.row===r)) return; // 電車が乗っているタイルは回転不可
+          rotatingTiles.add(tk);
+          g.style.transition = 'transform 260ms cubic-bezier(.3,0,.2,1)';
+          g.style.transform = 'rotate(60deg)';
+          setTimeout(()=>{
+            board[r][c].rotation = (board[r][c].rotation+1)%6;
+            g.style.transition = 'none';
+            g.style.transform = 'none';
+            drawArcs(arcsGroup, x, y, board[r][c]);
+            rotatingTiles.delete(tk);
+          }, 260);
+        });
+
+        svg.appendChild(g);
+        tileGroups[key({col:c,row:r})] = g;
+      }
+    }
+
+    trains.forEach(tr=>{
+      svg.appendChild(buildTrainElement(tr));
+      setTrainTransform(tr);
+    });
+  }
+
+  // 元のJ/L案の比率を保ったまま拡大縮小。2両目は先頭車のデザインを180度反転させて使う
+  const K = (SIZE*1.56) / 108;
+  const CAR_W = 22*K;
+  const FRONT_HALF = 24*K;
+  const REAR_HALF = FRONT_HALF;
+  const COUPLER_GAP = 6*K;
+  const GAP_DIST = FRONT_HALF + COUPLER_GAP + REAR_HALF; // 車両中心間の距離
+
+  function carFrontSVG(stripe){
+    const k=K;
+    return `
+      <ellipse cx="0" cy="${13*k}" rx="${21*k}" ry="${7*k}" fill="rgba(0,0,0,0.28)"/>
+      <path d="M ${-24*k} ${-11*k} L ${18*k} ${-11*k} L ${24*k} ${-7*k} L ${24*k} ${7*k} L ${18*k} ${11*k} L ${-24*k} ${11*k} Z"
+            fill="url(#trainBody)" stroke="#7c848a" stroke-width="${0.9*k}"/>
+      <rect x="${-24*k}" y="${-11.6*k}" width="${42*k}" height="${1.6*k}" fill="${stripe}"/>
+      <rect x="${-24*k}" y="${10*k}" width="${42*k}" height="${1.6*k}" fill="${stripe}"/>
+      <line x1="${-21*k}" y1="0" x2="${15*k}" y2="0" stroke="#7c848a" stroke-width="${0.5*k}" opacity="0.5"/>
+      <rect x="${-16*k}" y="${-4*k}" width="${8*k}" height="${2.8*k}" rx="${0.8*k}" fill="#c7cdd0" stroke="#8a9195" stroke-width="${0.4*k}"/>
+      <rect x="${-5*k}" y="${-4*k}" width="${8*k}" height="${2.8*k}" rx="${0.8*k}" fill="#c7cdd0" stroke="#8a9195" stroke-width="${0.4*k}"/>
+      <path d="M ${18*k} ${-11*k} L ${24*k} ${-7*k} L ${24*k} ${7*k} L ${18*k} ${11*k} L ${14*k} ${7.4*k} L ${14*k} ${-7.4*k} Z" fill="#8fa0a8" opacity="0.5"/>
+    `;
+  }
+
+  function buildTrainElement(tr){
+    // 電車を描画（上から見た疑似3D、2両編成。2両目は1両目を反転させたもの）
+    const stripe = tr.color || '#2e9e46';
+    const el = document.createElementNS('http://www.w3.org/2000/svg','g');
+    el.setAttribute('class','train');
+    const rearG = document.createElementNS('http://www.w3.org/2000/svg','g');
+    const rearInner = document.createElementNS('http://www.w3.org/2000/svg','g');
+    rearInner.setAttribute('transform', 'rotate(180)');
+    rearInner.innerHTML = carFrontSVG(stripe);
+    rearG.appendChild(rearInner);
+    const coupler = document.createElementNS('http://www.w3.org/2000/svg','line');
+    coupler.setAttribute('stroke', '#5a6266');
+    coupler.setAttribute('stroke-width', '1.2');
+    coupler.setAttribute('stroke-linecap', 'round');
+    const frontG = document.createElementNS('http://www.w3.org/2000/svg','g');
+    frontG.innerHTML = carFrontSVG(stripe);
+    el.appendChild(rearG);
+    el.appendChild(coupler);
+    el.appendChild(frontG);
+    tr.frontEl = frontG; tr.rearEl = rearG; tr.couplerEl = coupler;
+    return el;
+  }
+
+  // ---- 電車の状態と単一のアニメーションループ（複数台対応） ----
+  const runBtn = document.getElementById('runBtn');
+  const newBtn = document.getElementById('newBtn');
+  const addBtn = document.getElementById('addBtn');
+  const statusEl = document.getElementById('status');
+
+  const TRAIN_COLORS = ['#2e9e46', '#2f6fd6', '#e0a821', '#d64f8a', '#4fb8c4', '#c65a2e'];
+  let trains = [];
+  let nextColorIdx = 0;
+  let rafId = null;
+  let lastTickTime = null;
+  const SEG_MS = 950;
+
+  function worldPoint(pos, lx, ly){
+    ly = ly || 0;
+    const rad = pos.heading*Math.PI/180;
+    return { x: pos.x + lx*Math.cos(rad) - ly*Math.sin(rad), y: pos.y + lx*Math.sin(rad) + ly*Math.cos(rad) };
+  }
+  function lerpAngle(a,b,f){
+    const d = ((b-a+540)%360)-180;
+    return a + d*f;
+  }
+  function getLaggedPoseByDistance(tr, targetD){
+    const h = tr.history;
+    if(!h || h.length===0) return {x:tr.x, y:tr.y, heading:tr.heading};
+    if(targetD <= h[0].d){
+      // 履歴が足りない分は、最初の記録点からさらに手前へ外挿する
+      // （ここを単純に h[0] を返すだけにすると、ワープ直後などに後続車が先頭車の位置に重なってしまう）
+      const deficit = h[0].d - targetD;
+      const rad = h[0].heading*Math.PI/180;
+      return { x: h[0].x - Math.cos(rad)*deficit, y: h[0].y - Math.sin(rad)*deficit, heading: h[0].heading };
+    }
+    for(let i=1;i<h.length;i++){
+      if(h[i].d >= targetD){
+        const a=h[i-1], b=h[i];
+        const f = (targetD-a.d)/((b.d-a.d)||1);
+        return { x:a.x+(b.x-a.x)*f, y:a.y+(b.y-a.y)*f, heading:lerpAngle(a.heading,b.heading,f) };
+      }
+    }
+    return h[h.length-1];
+  }
+
+  function setTrainTransform(tr){
+    if(!tr.frontEl) return;
+    tr.frontEl.setAttribute('transform', `translate(${tr.x} ${tr.y}) rotate(${tr.heading})`);
+    const rp = tr.rearPose || {x:tr.x, y:tr.y, heading:tr.heading};
+    tr.rearEl.setAttribute('transform', `translate(${rp.x} ${rp.y}) rotate(${rp.heading})`);
+    const fp = worldPoint({x:tr.x,y:tr.y,heading:tr.heading}, -FRONT_HALF, 0);
+    const rp2 = worldPoint(rp, REAR_HALF, 0);
+    tr.couplerEl.setAttribute('x1', fp.x); tr.couplerEl.setAttribute('y1', fp.y);
+    tr.couplerEl.setAttribute('x2', rp2.x); tr.couplerEl.setAttribute('y2', rp2.y);
+  }
+
+  function updateTrainVisual(tr){
+    if(tr.lastX===undefined){ tr.lastX=tr.x; tr.lastY=tr.y; }
+    const moved = Math.hypot(tr.x-tr.lastX, tr.y-tr.lastY);
+    tr.dist = (tr.dist||0) + moved;
+    tr.lastX = tr.x; tr.lastY = tr.y;
+    tr.history = tr.history || [];
+    tr.history.push({d:tr.dist, x:tr.x, y:tr.y, heading:tr.heading});
+    const minKeep = tr.dist - GAP_DIST - 20;
+    while(tr.history.length>1 && tr.history[0].d < minKeep) tr.history.shift();
+    tr.rearPose = getLaggedPoseByDistance(tr, tr.dist - GAP_DIST);
+    setTrainTransform(tr);
+  }
+
+  function beginSegment(tr, col,row,entryEdge, wrapped){
+    const tile = board[row][col];
+    const exitEdge = effectiveConn(tile, entryEdge);
+    const {x,y} = pixel(col,row);
+    const geo = arcGeometry(x,y,entryEdge,exitEdge);
+    tr.col=col; tr.row=row; tr.entryEdge=entryEdge;
+    tr.anim = { exitEdge, geo, elapsed:0, dur: SEG_MS };
+    const p0 = arcPointAt(geo,0);
+    tr.x=p0.x; tr.y=p0.y; tr.heading = arcHeadingAt(geo,0);
+    if(wrapped){
+      // 盤の端をまたいだ瞬間は走行履歴を捨てて、後続車を先頭車のすぐ後ろに置き直す
+      // （そうしないと後続車が盤の反対側にいた頃の位置を引きずって連結器が盤を横断してしまう）
+      tr.lastX = tr.x; tr.lastY = tr.y; // ワープ分を「移動距離」として数えないようにする
+      tr.history = [{d: tr.dist||0, x:tr.x, y:tr.y, heading:tr.heading}];
+      const rad = tr.heading*Math.PI/180;
+      tr.rearPose = { x: tr.x - Math.cos(rad)*GAP_DIST, y: tr.y - Math.sin(rad)*GAP_DIST, heading: tr.heading };
+      setTrainTransform(tr);
+    } else {
+      updateTrainVisual(tr);
+    }
+  }
+
+  const MAX_TRAINS = 8;
+  function addTrain(){
+    if(trains.length >= MAX_TRAINS) return;
+    const col = Math.floor(Math.random()*COLS);
+    const row = Math.floor(Math.random()*ROWS);
+    const entryEdge = Math.floor(Math.random()*6);
+    const {x,y} = pixel(col,row);
+    const p = edgePoint(x,y,entryEdge);
+    const tr = { col, row, x:p.x, y:p.y, heading:0, entryEdge, anim:null, history:[], dist:0,
+                 color: TRAIN_COLORS[nextColorIdx % TRAIN_COLORS.length] };
+    nextColorIdx++;
+    trains.push(tr);
+    svg.appendChild(buildTrainElement(tr));
+    const rad = tr.heading*Math.PI/180;
+    tr.rearPose = { x: tr.x - Math.cos(rad)*GAP_DIST, y: tr.y - Math.sin(rad)*GAP_DIST, heading: tr.heading };
+    tr.lastX = tr.x; tr.lastY = tr.y;
+    setTrainTransform(tr);
+    if(isRunning) beginSegment(tr, tr.col, tr.row, tr.entryEdge);
+  }
+
+  function tick(now){
+    if(lastTickTime==null) lastTickTime = now;
+    const dt = now - lastTickTime;
+    lastTickTime = now;
+
+    if(isRunning){
+      trains.forEach(tr=>{
+        if(!tr.anim) return;
+        tr.anim.elapsed += dt;
+        const t = Math.min(1, tr.anim.elapsed/tr.anim.dur);
+        const p = arcPointAt(tr.anim.geo, t);
+        tr.x=p.x; tr.y=p.y; tr.heading = arcHeadingAt(tr.anim.geo, t);
+        updateTrainVisual(tr);
+        if(t>=1){
+          const raw = neighborOf({col:tr.col,row:tr.row}, tr.anim.exitEdge);
+          const next = wrap(raw);
+          const wrapped = (raw.col!==next.col || raw.row!==next.row);
+          beginSegment(tr, next.col, next.row, (tr.anim.exitEdge+3)%6, wrapped);
+        }
+      });
+    }
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function startRunning(){
+    isRunning = true;
+    runBtn.textContent = 'ストップ';
+    trains.forEach(tr=>{ if(!tr.anim) beginSegment(tr, tr.col, tr.row, tr.entryEdge); });
+  }
+  function stopRunning(){
+    isRunning = false;
+    runBtn.textContent = 'スタート';
+  }
+
+  runBtn.addEventListener('click', ()=>{
+    if(isRunning) stopRunning(); else startRunning();
+  });
+  addBtn.addEventListener('click', addTrain);
+  newBtn.addEventListener('click', ()=>{
+    stopRunning();
+    trains = [];
+    nextColorIdx = 0;
+    generateBoard();
+    render();
+    addTrain();
+  });
+
+  generateBoard();
+  render();
+  addTrain();
+  rafId = requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>
