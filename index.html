@@ -32,22 +32,23 @@
     color:#2b2b2b;
     overflow:hidden;
   }
-  body{ display:flex; align-items:center; justify-content:center; }
+  body{ display:flex; justify-content:center; }
   .app{
-    width:min(96vw, 760px);
+    width:100%; max-width:760px;
     height:100vh; height:100dvh;
-    display:flex; flex-direction:column;
-    padding:16px 18px 18px;
+    display:flex; flex-direction:column; justify-content:center;
+    padding:14px 0 16px;
   }
-  .header{ position:relative; display:flex; justify-content:center; align-items:center; margin-bottom:12px; flex:0 0 auto; }
+  /* タイトルとボタンだけ左右に少し余白を持たせる（盤面は端まで使う） */
+  .header{ position:relative; display:flex; justify-content:center; align-items:center; margin-bottom:12px; flex:0 0 auto; padding:0 14px; }
   .header #newBtn{ position:absolute; right:0; top:50%; transform:translateY(-50%); }
   h1{
     font-family: inherit;
     font-weight:800;
     font-size:26px; letter-spacing:0.04em; margin:0; color:#2b2b2b;
   }
-  /* 残り領域いっぱいを使い、盤面を中央寄せ */
-  .board-area{ flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center; }
+  /* 盤面はコンテンツ高さのまま（余白を吸収しない）＝すぐ下にボタンが来る */
+  .board-area{ flex:0 0 auto; display:flex; justify-content:center; }
   /* 盤面の縦横比を固定し、「利用可能な幅」と「利用可能な高さ×比率」の小さい方に合わせる
      → 縦長画面(スマホ)は横幅いっぱい、横長画面(PC)は高さに収まり1画面に収まる */
   #board-wrap{
@@ -77,7 +78,7 @@
   .tuft-c{ stroke: var(--tuft-3); }
   .tuft-d{ stroke: var(--tuft-4); }
   .badge{ font-size:11px; font-weight:700; fill:var(--green); pointer-events:none; letter-spacing:0.05em; }
-  .controls{ position:relative; display:flex; justify-content:center; align-items:center; margin-top:14px; min-height:20px; flex:0 0 auto; }
+  .controls{ position:relative; display:flex; justify-content:center; align-items:center; margin-top:14px; min-height:20px; flex:0 0 auto; padding:0 14px; }
   #addBtn{ position:absolute; left:0; }
   button{
     font-family:inherit; font-size:14px; font-weight:600; padding:9px 18px;
@@ -90,7 +91,7 @@
   #status{ margin-left:auto; font-size:14px; font-weight:700; min-height:20px; color:#8a8a80; }
 
   @media (max-width: 460px){
-    .app{ width:100vw; padding:10px 4px 12px; justify-content:center; }
+    .app{ padding:10px 0 12px; }
     h1{ font-size:16px; }
     .header{ margin-bottom:8px; }
     .header #newBtn{ font-size:12px; padding:6px 10px; }
