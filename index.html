@@ -44,13 +44,15 @@
     font-weight:800;
     font-size:26px; letter-spacing:0.04em; margin:0; color:#2b2b2b;
   }
-  /* 残り領域いっぱいを使い、盤面フレームをその中で中央寄せ */
+  /* 残り領域いっぱいを使い、盤面を中央寄せ */
   .board-area{ flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center; }
-  /* 盤面の縦横比を固定 → 幅・高さ両方に収まる最大サイズに自動決定（フレームが盤面を包む） */
+  /* 盤面の縦横比を固定し、「利用可能な幅」と「利用可能な高さ×比率」の小さい方に合わせる
+     → 縦長画面(スマホ)は横幅いっぱい、横長画面(PC)は高さに収まり1画面に収まる */
   #board-wrap{
     aspect-ratio: 521.67 / 437;
+    width: min(100%, calc((100vh - 140px) * 1.1938));
+    width: min(100%, calc((100dvh - 140px) * 1.1938));
     max-width:100%;
-    max-height:100%;
     background: #eef1ea;
     border:1px solid #dde2d6;
     border-radius:14px;
@@ -90,7 +92,8 @@
     h1{ font-size:16px; }
     .header{ margin-bottom:8px; }
     .header #newBtn{ font-size:12px; padding:6px 10px; }
-    #board-wrap{ padding:6px; border-radius:10px; }
+    /* スマホは操作ボタンが縦積みになるぶん、確保する高さを増やす */
+    #board-wrap{ width: min(100%, calc((100dvh - 150px) * 1.1938)); padding:6px; border-radius:10px; }
     .controls{ flex-direction:column; gap:10px; margin-top:10px; }
     #addBtn{ position:static; order:2; }
     #runBtn{ order:1; }
