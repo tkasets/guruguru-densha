@@ -114,12 +114,19 @@
       border-left:none; border-right:none;
       border-radius:0;
     }
-    /* 縦持ち(スマホ)では文字とボタンを画面幅に応じて大きくする */
-    h1{ font-size:clamp(20px, 5.6vw, 30px); }
-    .header{ margin-bottom:14px; }
-    button{ font-size:clamp(15px, 4.2vw, 20px); padding:12px 22px; }
-    .header #newBtn{ font-size:clamp(13px, 3.6vw, 18px); padding:10px 16px; }
-    .controls{ margin-top:16px; }
+    /* ヘッダーとボタン行も画面幅いっぱいに広げ、隅のボタンを端に寄せる */
+    .header, .controls{
+      width:100vw; max-width:none;
+      margin-left:calc(50% - 50vw); margin-right:calc(50% - 50vw);
+    }
+    .header{ padding:0 12px; margin-bottom:14px; }
+    .controls{ padding:0 12px; margin-top:16px; }
+    .header #newBtn{ right:8px; }
+    #addBtn{ left:8px; }
+    /* 縦持ち(スマホ)では文字とボタンを画面幅に応じて大きくする（約1.3倍） */
+    h1{ font-size:clamp(26px, 7.3vw, 39px); }
+    button{ font-size:clamp(20px, 5.5vw, 26px); padding:16px 28px; }
+    .header #newBtn{ font-size:clamp(17px, 4.7vw, 23px); padding:13px 20px; }
   }
 </style>
 </head>
