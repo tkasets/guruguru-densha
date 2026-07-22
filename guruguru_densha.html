@@ -52,9 +52,9 @@
   /* 盤面の縦横比を固定し、「利用可能な幅」と「利用可能な高さ×比率」の小さい方に合わせる
      → 縦長画面(スマホ)は横幅いっぱい、横長画面(PC)は高さに収まり1画面に収まる */
   #board-wrap{
-    aspect-ratio: 521.67 / 437;
-    width: min(100%, calc((100vh - 140px) * 1.1938));
-    width: min(100%, calc((100dvh - 140px) * 1.1938));
+    aspect-ratio: 506.56 / 431;
+    width: min(100%, calc((100vh - 140px) * 1.1753));
+    width: min(100%, calc((100dvh - 140px) * 1.1753));
     max-width:100%;
     background: #eef1ea;
     border:1px solid #dde2d6;
@@ -96,11 +96,16 @@
     .header{ margin-bottom:8px; }
     .header #newBtn{ font-size:12px; padding:6px 10px; }
     /* スマホは操作ボタンが縦積みになるぶん、確保する高さを増やす */
-    #board-wrap{ width: min(100%, calc((100dvh - 150px) * 1.1938)); padding:6px; border-radius:10px; }
+    #board-wrap{ width: min(100%, calc((100dvh - 150px) * 1.1753)); padding:5px; border-radius:10px; }
     .controls{ flex-direction:column; gap:10px; margin-top:10px; }
     #addBtn{ position:static; order:2; }
     #runBtn{ order:1; }
     button{ font-size:13px; padding:8px 14px; }
+  }
+
+  /* 縦長画面（スマホ縦持ちなど）は高さに余裕があるので、端末幅に関係なく必ず横幅いっぱいにする */
+  @media (max-aspect-ratio: 1/1){
+    #board-wrap{ width:100%; padding:4px; }
   }
 </style>
 </head>
@@ -303,11 +308,12 @@
     let allX=[], allY=[];
     for(let r=0;r<ROWS;r++) for(let c=0;c<COLS;c++){
       const {x,y}=pixel(c,r);
-      allX.push(x-SIZE,x+SIZE); allY.push(y-SIZE,y+SIZE);
+      // 横方向は六角形の実際の張り出し(APOTHEM)で計測し、無駄な左右余白を作らない
+      allX.push(x-APOTHEM,x+APOTHEM); allY.push(y-SIZE,y+SIZE);
     }
     const minX=Math.min(...allX), maxX=Math.max(...allX);
     const minY=Math.min(...allY), maxY=Math.max(...allY);
-    svg.setAttribute('viewBox', `${minX-6} ${minY-6} ${maxX-minX+12} ${maxY-minY+12}`);
+    svg.setAttribute('viewBox', `${minX-3} ${minY-3} ${maxX-minX+6} ${maxY-minY+6}`);
 
     const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
     defs.innerHTML = `
