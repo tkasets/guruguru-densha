@@ -37,7 +37,7 @@
     width:100%; max-width:760px;
     height:100vh; height:100dvh;
     display:flex; flex-direction:column; justify-content:center;
-    padding:14px 0 16px;
+    padding:34px 0 16px;
   }
   /* タイトルとボタンだけ左右に少し余白を持たせる（盤面は端まで使う） */
   .header{ position:relative; display:flex; justify-content:center; align-items:center; margin-bottom:12px; flex:0 0 auto; padding:0 14px; }
@@ -53,8 +53,8 @@
      → 縦長画面(スマホ)は横幅いっぱい、横長画面(PC)は高さに収まり1画面に収まる */
   #board-wrap{
     aspect-ratio: 506.56 / 431;
-    width: min(100%, calc((100vh - 140px) * 1.1753));
-    width: min(100%, calc((100dvh - 140px) * 1.1753));
+    width: min(100%, calc((100vh - 160px) * 1.1753));
+    width: min(100%, calc((100dvh - 160px) * 1.1753));
     max-width:100%;
     background: #eef1ea;
     border:1px solid #dde2d6;
@@ -128,9 +128,11 @@
     button{ font-size:clamp(20px, 5.5vw, 26px); padding:16px 28px; }
     .header #newBtn{ font-size:clamp(17px, 4.7vw, 23px); padding:13px 20px; }
   }
+.t-back{position:fixed;top:6px;left:8px;z-index:50;padding:3px 10px;font:12px/1.5 system-ui,"Hiragino Kaku Gothic ProN","Yu Gothic",sans-serif;color:#333;background:rgba(255,255,255,.88);border:1px solid rgba(0,0,0,.2);border-radius:999px;text-decoration:none;white-space:nowrap}
 </style>
 </head>
 <body>
+<a class="t-back" href="https://t-kasets.com">&lt; アプリ一覧</a>
 <div class="app">
   <div class="header">
     <h1>ぐるぐるでんしゃ</h1>
